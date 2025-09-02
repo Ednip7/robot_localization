@@ -21,8 +21,8 @@ ekf_filter_node:
         twist0: /velocidad_robot
         twist0_config: [false, false, false,   # X,Y,Z
                         false, false, false,   # Roll,Pitch,Yaw
-                        true,  true,  true,    # Vx,Vy,Vz
-                        false, false, false,   # Vroll,Vpitch,Vyaw
+                        true,  false,  false,    # Vx,Vy,Vz
+                        false, false, true,   # Vroll,Vpitch,Vyaw
                         false, false, false]   # Ax,Ay,Az
         
         # Matrices de covarianza (ajustar según tus sensores)
