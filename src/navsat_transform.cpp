@@ -78,7 +78,7 @@ NavSatTransform::NavSatTransform(const rclcpp::NodeOptions & options)
   cartesian_broadcaster_(*this),
   utm_meridian_convergence_(0.0),
   utm_zone_(""),
-  world_frame_id_("odom"),
+  world_frame_id_("map"),
   yaw_offset_(0.0),
   zero_altitude_(false)
 {
@@ -98,7 +98,7 @@ NavSatTransform::NavSatTransform(const rclcpp::NodeOptions & options)
   zero_altitude_ = this->declare_parameter("zero_altitude", false);
   publish_gps_ = this->declare_parameter("publish_filtered_gps", true);
   use_odometry_yaw_ = this->declare_parameter("use_odometry_yaw", false);
-  use_manual_datum_ = this->declare_parameter("wait_for_datum", false);
+  use_manual_datum_ = this->declare_parameter("wait_for_datum", true);
   use_local_cartesian_ = this->declare_parameter("use_local_cartesian", false);
   frequency = this->declare_parameter("frequency", frequency);
   delay = this->declare_parameter("delay", delay);
@@ -147,12 +147,15 @@ NavSatTransform::NavSatTransform(const rclcpp::NodeOptions & options)
 
   std::vector<double> datum_vals;
   if (use_manual_datum_) {
+
     datum_vals = this->declare_parameter("datum", datum_vals);
 
-    double datum_lat = 0.0;
-    double datum_lon = 0.0;
+    double datum_lat = -31.5338459245;
+    double datum_lon = -68.5432971245;
     double datum_yaw = 0.0;
 
+    RCLCPP_WARN(this->get_logger(), "******************************seteo manual*********************************************");
+  
     if (datum_vals.size() == 3) {
       datum_lat = datum_vals[0];
       datum_lon = datum_vals[1];
@@ -185,7 +188,7 @@ NavSatTransform::NavSatTransform(const rclcpp::NodeOptions & options)
 
   if (!use_odometry_yaw_ && !use_manual_datum_) {
     imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "imu", custom_qos, std::bind(&NavSatTransform::imuCallback, this, _1), subscriber_options);
+      "olive/imu/id001/ahrs", custom_qos, std::bind(&NavSatTransform::imuCallback, this, _1), subscriber_options);
   }
 
   rclcpp::PublisherOptions publisher_options;
@@ -394,8 +397,10 @@ void NavSatTransform::setManualDatum()
   odom.pose.pose.position.x = 0;
   odom.pose.pose.position.y = 0;
   odom.pose.pose.position.z = 0;
-  odom.header.frame_id = world_frame_id_;
-  odom.child_frame_id = base_link_frame_id_;
+  // odom.header.frame_id = world_frame_id_;
+  // odom.child_frame_id = base_link_frame_id_;
+  odom.child_frame_id = "base_link";
+  odom.header.frame_id = "map";
   nav_msgs::msg::Odometry::SharedPtr odom_ptr =
     std::make_shared<nav_msgs::msg::Odometry>(odom);
   setTransformOdometry(odom_ptr);
@@ -494,7 +499,7 @@ nav_msgs::msg::Odometry NavSatTransform::cartesianToMap(
   return gps_odom;
 }
 
-void NavSatTransform::mapToLL(
+/*void NavSatTransform::mapToLL(
   const tf2::Vector3 & point,
   double & latitude,
   double & longitude,
@@ -517,6 +522,43 @@ void NavSatTransform::mapToLL(
     latitude,
     longitude);
   altitude = odom_as_cartesian.getOrigin().getZ();
+}*/
+
+void NavSatTransform::mapToLL(
+  const tf2::Vector3 & point,
+  double & latitude,
+  double & longitude,
+  double & altitude) const
+{
+  tf2::Transform odom_as_cartesian;
+
+  tf2::Transform pose;
+  pose.setOrigin(point);
+  pose.setRotation(tf2::Quaternion::getIdentity());
+
+  // Pasar de world → cartesiano (ENU/UTM) con la inversa fija
+  odom_as_cartesian.mult(cartesian_world_trans_inverse_, pose);
+  odom_as_cartesian.setRotation(tf2::Quaternion::getIdentity());
+
+  const double cx = odom_as_cartesian.getOrigin().getX();
+  const double cy = odom_as_cartesian.getOrigin().getY();
+  const double cz = odom_as_cartesian.getOrigin().getZ();
+
+  if (use_local_cartesian_) {
+    // *** Camino ENU local coherente ***
+    gps_local_cartesian_.Reverse(
+      cx, cy, cz,
+      latitude, longitude, altitude);
+  } else {
+    // Camino UTM (igual que antes)
+    navsat_conversions::UTMtoLL(
+      cy,
+      cx,
+      utm_zone_,
+      latitude,
+      longitude);
+    altitude = cz;
+  }
 }
 
 void NavSatTransform::getRobotOriginCartesianPose(
@@ -608,7 +650,7 @@ void NavSatTransform::getRobotOriginWorldPose(
   }
 }
 
-void NavSatTransform::gpsFixCallback(
+/*void NavSatTransform::gpsFixCallback(
   const sensor_msgs::msg::NavSatFix::SharedPtr msg)
 {
   gps_frame_id_ = msg->header.frame_id;
@@ -656,6 +698,73 @@ void NavSatTransform::gpsFixCallback(
     gps_update_time_ = msg->header.stamp;
     gps_updated_ = true;
   }
+}*/
+
+void NavSatTransform::gpsFixCallback(
+  const sensor_msgs::msg::NavSatFix::SharedPtr msg)
+{
+  gps_frame_id_ = msg->header.frame_id;
+
+  if (gps_frame_id_.empty()) {
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "NavSatFix message has empty frame_id. "
+      "Will assume navsat device is mounted at robot's origin");
+  }
+
+  const bool good_gps =
+    (msg->status.status != sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX &&
+     !std::isnan(msg->altitude) && !std::isnan(msg->latitude) &&
+     !std::isnan(msg->longitude));
+
+  if (!good_gps) {
+    return;
+  }
+
+  // Si aún no hay transform y no hay datum manual, usamos este fix como ancla
+  if (!transform_good_ && !use_manual_datum_) {
+    setTransformGps(msg);
+  }
+
+  double cartesian_x = 0.0;
+  double cartesian_y = 0.0;
+  double cartesian_z = 0.0;
+
+  if (use_local_cartesian_) {
+    // *** Consistente con el datum en ENU local ***
+    gps_local_cartesian_.Forward(
+      msg->latitude,
+      msg->longitude,
+      msg->altitude,
+      cartesian_x,
+      cartesian_y,
+      cartesian_z);
+  } else {
+    // Camino UTM sin cambios
+    std::string cartesian_zone_tmp;
+    navsat_conversions::LLtoUTM(
+      msg->latitude,
+      msg->longitude,
+      cartesian_y,
+      cartesian_x,
+      cartesian_zone_tmp);
+  }
+
+  // Nota: mantenemos z = msg->altitude como en el código original para minimizar cambios;
+  // si preferís la z del ENU local, reemplazá por `cartesian_z` cuando use_local_cartesian_ sea true.
+  latest_cartesian_pose_.setOrigin(tf2::Vector3(cartesian_x, cartesian_y, msg->altitude));
+  latest_cartesian_covariance_.setZero();
+
+  // Copiar covarianza de la medición
+  for (size_t i = 0; i < POSITION_SIZE; ++i) {
+    for (size_t j = 0; j < POSITION_SIZE; ++j) {
+      latest_cartesian_covariance_(i, j) =
+        msg->position_covariance[POSITION_SIZE * i + j];
+    }
+  }
+
+  gps_update_time_ = msg->header.stamp;
+  gps_updated_ = true;
 }
 
 void NavSatTransform::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
@@ -830,6 +939,8 @@ bool NavSatTransform::prepareGpsOdometry(nav_msgs::msg::Odometry * gps_odom)
           latest_cartesian_covariance_(i, j);
       }
     }
+    gps_odom->header.frame_id = "map";
+    gps_odom->child_frame_id = "base_link";
 
     // Mark this GPS as used
     gps_updated_ = false;
