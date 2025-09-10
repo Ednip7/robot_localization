@@ -14,19 +14,19 @@ ekf_filter_node:
     base_link_frame: base_link
     world_frame: map   # <- IMPORTANTE: en global siempre usamos map
 
-    # Odometry local (ya fusionada por el ekf_local)
-    odom0: /odometry/filtered
-    odom0_config: [false, false, false,   # x, y, z
-                   false, false, true,  # roll, pitch, yaw
-                   false, false, false,   # vx, vy, vz
-                   false, false, true,  # vroll, vpitch, vyaw
-                   false, false, false] # ax, ay, az
-    odom0_differential: false
-    odom0_relative: false
-    odom0_queue_size: 20
-    odom0_pose_rejection_threshold: 5.0
-    odom0_twist_rejection_threshold: 1.0
-    odom0_nodelay: true
+    # # Odometry local (ya fusionada por el ekf_local)
+    # odom0: /odometry/filtered
+    # odom0_config: [false, false, false,   # x, y, z
+    #                false, false, true,  # roll, pitch, yaw
+    #                false, false, false,   # vx, vy, vz
+    #                false, false, true,  # vroll, vpitch, vyaw
+    #                false, false, false] # ax, ay, az
+    # odom0_differential: false
+    # odom0_relative: false
+    # odom0_queue_size: 20
+    # odom0_pose_rejection_threshold: 5.0
+    # odom0_twist_rejection_threshold: 1.0
+    # odom0_nodelay: true
 
     # GPS (convertido a odometry por navsat_transform)
     odom1: /odometry/gps
@@ -48,7 +48,7 @@ ekf_filter_node:
                   true,  true,  true,
                   false, false, false,
                   true,  true,  true,
-                  false, false, false]
+                  true, true, true]
     imu0_nodelay: true
     imu0_differential: false
     imu0_relative: false
@@ -56,6 +56,7 @@ ekf_filter_node:
     imu0_pose_rejection_threshold: 2.0                 # Note the difference in parameter names
     imu0_twist_rejection_threshold: 2.0                #
     imu0_linear_acceleration_rejection_threshold: 0.8 
+    imu0_remove_gravitational_acceleration: true
 
     twist0: /velocidad_robot
     twist0_config: [false, false, false,
@@ -87,20 +88,18 @@ ekf_filter_node:
                                 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.01, 0.0,
                                 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.015]
 
-
-    initial_estimate_covariance: [1e-9, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    1e-9, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    1e-9, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    1e-9, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    1e-9, 0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    1e-9, 0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1e-9, 0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1e-9, 0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1e-9, 0.0,     0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1e-9,  0.0,     0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     1e-9,  0.0,     0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     1e-9,  0.0,    0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     1e-9, 0.0,    0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    1e-9, 0.0,
-                                  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    1e-9]
-
+    initial_estimate_covariance: [1.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 1.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.5,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.1,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.1,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.2,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    1.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1,    0.0,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.2,    0.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1.0,    0.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1.0,    0.0,
+                                  0.0, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    1.0]
